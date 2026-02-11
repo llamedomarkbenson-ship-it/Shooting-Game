@@ -40,12 +40,13 @@ canvas {
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-let player, bullets, zombies, score, keys, gameOver, spawnTimer;
+let player, bullets, zombies, drops, score, keys, gameOver, spawnTimer;
 
 function init() {
-    player = { x: 280, y: 550, width: 40, height: 30, speed: 6 };
+    player = { x: 280, y: 550, width: 40, height: 30, speed: 6, health: 100, bulletSpeed: 8, maxBullets: 5 };
     bullets = [];
     zombies = [];
+    drops = [];
     score = 0;
     keys = {};
     gameOver = false;
@@ -65,7 +66,7 @@ function shoot() {
         y: player.y,
         width: 4,
         height: 10,
-        speed: 8
+        speed: player.bulletSpeed
     });
 }
 
@@ -76,55 +77,79 @@ function spawnZombie() {
             y: -30,
             width: 40,
             height: 30,
-            speed: 2 + Math.random() * 2
+            speed: 2 + Math.random() * 2,
+            health: 2 + Math.floor(Math.random() * 3) // 2–4 hits to kill
         });
     }
+}
+
+function spawnDrop(x, y) {
+    drops.push({
+        x: x,
+        y: y,
+        width: 20,
+        height: 20,
+        type: Math.random() < 0.5 ? "bullet" : "health", // 50% chance
+        speed: 2
+    });
 }
 
 function update() {
     if (gameOver) return;
 
-    if (keys["ArrowLeft"] && player.x > 0)
-        player.x -= player.speed;
+    // Player movement
+    if (keys["ArrowLeft"] && player.x > 0) player.x -= player.speed;
+    if (keys["ArrowRight"] && player.x < canvas.width - player.width) player.x += player.speed;
 
-    if (keys["ArrowRight"] && player.x < canvas.width - player.width)
-        player.x += player.speed;
+    // Shooting
+    if (keys["Space"] && bullets.length < player.maxBullets) shoot();
 
-    if (keys["Space"] && bullets.length < 5)
-        shoot();
-
-    bullets.forEach(b => b.y -= b.speed);
-    zombies.forEach(z => z.y += z.speed);
-
+    // Move bullets
+    bullets.forEach(b => b.y -= player.bulletSpeed);
     bullets = bullets.filter(b => b.y > 0);
+
+    // Move zombies
+    zombies.forEach(z => z.y += z.speed);
     zombies = zombies.filter(z => z.y < canvas.height);
 
-    // Collision detection
+    // Move drops
+    drops.forEach(d => d.y += d.speed);
+    drops = drops.filter(d => d.y < canvas.height);
+
+    // Bullet-Zombie collision
     for (let zi = zombies.length - 1; zi >= 0; zi--) {
         let z = zombies[zi];
-
         for (let bi = bullets.length - 1; bi >= 0; bi--) {
             let b = bullets[bi];
-
-            if (
-                b.x < z.x + z.width &&
-                b.x + b.width > z.x &&
-                b.y < z.y + z.height &&
-                b.y + b.height > z.y
-            ) {
-                zombies.splice(zi, 1);
+            if (b.x < z.x + z.width && b.x + b.width > z.x &&
+                b.y < z.y + z.height && b.y + b.height > z.y) {
+                z.health--;
                 bullets.splice(bi, 1);
-                score++;
+                if (z.health <= 0) {
+                    zombies.splice(zi, 1);
+                    score++;
+                    if (Math.random() < 0.5) spawnDrop(z.x + z.width/2, z.y + z.height/2);
+                }
                 break;
             }
         }
 
-        if (
-            z.y + z.height >= player.y &&
-            z.x < player.x + player.width &&
-            z.x + z.width > player.x
-        ) {
-            endGame();
+        // Zombie-Player collision
+        if (z.y + z.height >= player.y && z.x < player.x + player.width && z.x + z.width > player.x) {
+            player.health -= 20; // reduce player health
+            zombies.splice(zi, 1);
+            if (player.health <= 0) endGame();
+        }
+    }
+
+    // Player-Drop collision
+    for (let di = drops.length - 1; di >= 0; di--) {
+        let d = drops[di];
+        if (d.x < player.x + player.width && d.x + d.width > player.x &&
+            d.y < player.y + player.height && d.y + d.height > player.y) {
+            if (d.type === "bullet") player.maxBullets++;
+            if (d.type === "health") player.health = Math.min(player.health + 20, 100);
+            drops.splice(di, 1);
         }
     }
 }
@@ -138,23 +163,38 @@ function endGame() {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    ctx.font = "16px Arial";
-
     // Soldier
     ctx.fillStyle = "blue";
     ctx.fillRect(player.x, player.y, player.width, player.height);
     ctx.fillStyle = "white";
     ctx.fillText("S", player.x + 14, player.y + 20);
 
+    // Player health bar
+    ctx.fillStyle = "red";
+    ctx.fillRect(player.x, player.y - 10, player.width, 5);
+    ctx.fillStyle = "green";
+    ctx.fillRect(player.x, player.y - 10, player.width * (player.health / 100), 5);
+
     // Bullets
     ctx.fillStyle = "yellow";
     bullets.forEach(b => ctx.fillRect(b.x, b.y, b.width, b.height));
 
     // Zombies
-    ctx.fillStyle = "green";
-    zombies.forEach(z => ctx.fillRect(z.x, z.y, z.width, z.height));
+    zombies.forEach(z => {
+        ctx.fillStyle = "green";
+        ctx.fillRect(z.x, z.y, z.width, z.height);
+        ctx.fillStyle = "red";
+        ctx.fillRect(z.x, z.y - 5, z.width * (z.health / 4), 3); // health bar
+    });
 
-    // Score top-right
+    // Drops
+    drops.forEach(d => {
+        ctx.fillStyle = d.type === "bullet" ? "orange" : "pink";
+        ctx.fillRect(d.x, d.y, d.width, d.height);
+    });
+
+    // Score
+    ctx.font = "16px Arial";
     ctx.textAlign = "right";
     ctx.fillStyle = "white";
     ctx.fillText("Score: " + score, canvas.width - 10, 20);
