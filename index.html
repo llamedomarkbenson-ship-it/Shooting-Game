@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Shooting Game</title>
+<title>Soldier vs Zombies</title>
 <style>
 body {
     margin: 0;
@@ -10,35 +10,58 @@ body {
     overflow: hidden;
     text-align: center;
     color: white;
+    font-family: Arial;
 }
+
 canvas {
     background: #111;
     display: block;
     margin: auto;
 }
+
+#resetBtn {
+    display: none;
+    margin-top: 10px;
+    padding: 10px 20px;
+    font-size: 18px;
+    cursor: pointer;
+}
 </style>
 </head>
 
 <body>
-<h2>Shooting Game — Arrow Keys to Move, Space to Shoot</h2>
+<h2>Soldier vs Zombies — Arrow Keys Move, Space Shoots</h2>
+
 <canvas id="gameCanvas" width="600" height="600"></canvas>
+<br>
+<button id="resetBtn" onclick="resetGame()">Reset Game</button>
 
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-let player = {
-    x: 280,
-    y: 550,
-    width: 40,
-    height: 20,
-    speed: 6
-};
+let player, bullets, zombies, score, keys, gameOver;
+let spawnInterval;
 
-let bullets = [];
-let enemies = [];
-let score = 0;
-let keys = {};
+function init() {
+    player = {
+        x: 280,
+        y: 550,
+        width: 40,
+        height: 30,
+        speed: 6
+    };
+
+    bullets = [];
+    zombies = [];
+    score = 0;
+    keys = {};
+    gameOver = false;
+
+    document.getElementById("resetBtn").style.display = "none";
+
+    spawnInterval = setInterval(spawnZombie, 1000);
+}
 
 document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => keys[e.key] = false);
@@ -53,17 +76,21 @@ function shoot() {
     });
 }
 
-setInterval(() => {
-    enemies.push({
-        x: Math.random() * 560,
-        y: -20,
-        width: 40,
-        height: 20,
-        speed: 2 + Math.random() * 2
-    });
-}, 1000);
+function spawnZombie() {
+    if (!gameOver) {
+        zombies.push({
+            x: Math.random() * 560,
+            y: -20,
+            width: 40,
+            height: 30,
+            speed: 2 + Math.random() * 2
+        });
+    }
+}
 
 function update() {
+    if (gameOver) return;
+
     if (keys["ArrowLeft"] && player.x > 0)
         player.x -= player.speed;
 
@@ -74,64 +101,8 @@ function update() {
         shoot();
 
     bullets.forEach(b => b.y -= b.speed);
-    enemies.forEach(e => e.y += e.speed);
+    zombies.forEach(z => z.y += z.speed);
 
     bullets = bullets.filter(b => b.y > 0);
-    enemies = enemies.filter(e => e.y < canvas.height);
+    zombies = zombies.fi
 
-    enemies.forEach((enemy, ei) => {
-        bullets.forEach((bullet, bi) => {
-            if (
-                bullet.x < enemy.x + enemy.width &&
-                bullet.x + bullet.width > enemy.x &&
-                bullet.y < enemy.y + enemy.height &&
-                bullet.y + bullet.height > enemy.y
-            ) {
-                enemies.splice(ei, 1);
-                bullets.splice(bi, 1);
-                score++;
-            }
-        });
-
-        if (
-            enemy.y + enemy.height >= player.y &&
-            enemy.x < player.x + player.width &&
-            enemy.x + enemy.width > player.x
-        ) {
-            alert("Game Over! Score: " + score);
-            document.location.reload();
-        }
-    });
-}
-
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    ctx.fillStyle = "lime";
-    ctx.fillRect(player.x, player.y, player.width, player.height);
-
-    ctx.fillStyle = "yellow";
-    bullets.forEach(b =>
-        ctx.fillRect(b.x, b.y, b.width, b.height)
-    );
-
-    ctx.fillStyle = "red";
-    enemies.forEach(e =>
-        ctx.fillRect(e.x, e.y, e.width, e.height)
-    );
-
-    ctx.fillStyle = "white";
-    ctx.fillText("Score: " + score, 10, 20);
-}
-
-function gameLoop() {
-    update();
-    draw();
-    requestAnimationFrame(gameLoop);
-}
-
-gameLoop();
-</script>
-
-</body>
-</html>
