@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <title>Soldier vs Zombies</title>
+
 <style>
 body {
     margin: 0;
     background: black;
-    overflow: hidden;
     text-align: center;
     color: white;
     font-family: Arial;
@@ -30,7 +30,7 @@ canvas {
 </head>
 
 <body>
-<h2>Soldier vs Zombies — Arrow Keys Move, Space Shoots</h2>
+<h2>Soldier vs Zombies — Move: ← → | Shoot: Space</h2>
 
 <canvas id="gameCanvas" width="600" height="600"></canvas>
 <br>
@@ -40,18 +40,10 @@ canvas {
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-let player, bullets, zombies, score, keys, gameOver;
-let spawnInterval;
+let player, bullets, zombies, score, keys, gameOver, spawnTimer;
 
 function init() {
-    player = {
-        x: 280,
-        y: 550,
-        width: 40,
-        height: 30,
-        speed: 6
-    };
-
+    player = { x: 280, y: 550, width: 40, height: 30, speed: 6 };
     bullets = [];
     zombies = [];
     score = 0;
@@ -60,11 +52,12 @@ function init() {
 
     document.getElementById("resetBtn").style.display = "none";
 
-    spawnInterval = setInterval(spawnZombie, 1000);
+    clearInterval(spawnTimer);
+    spawnTimer = setInterval(spawnZombie, 1000);
 }
 
-document.addEventListener("keydown", e => keys[e.key] = true);
-document.addEventListener("keyup", e => keys[e.key] = false);
+document.addEventListener("keydown", e => keys[e.code] = true);
+document.addEventListener("keyup", e => keys[e.code] = false);
 
 function shoot() {
     bullets.push({
@@ -80,7 +73,7 @@ function spawnZombie() {
     if (!gameOver) {
         zombies.push({
             x: Math.random() * 560,
-            y: -20,
+            y: -30,
             width: 40,
             height: 30,
             speed: 2 + Math.random() * 2
@@ -97,12 +90,98 @@ function update() {
     if (keys["ArrowRight"] && player.x < canvas.width - player.width)
         player.x += player.speed;
 
-    if (keys[" "] && bullets.length < 5)
+    if (keys["Space"] && bullets.length < 5)
         shoot();
 
     bullets.forEach(b => b.y -= b.speed);
     zombies.forEach(z => z.y += z.speed);
 
     bullets = bullets.filter(b => b.y > 0);
-    zombies = zombies.fi
+    zombies = zombies.filter(z => z.y < canvas.height);
 
+    // Collision detection
+    for (let zi = zombies.length - 1; zi >= 0; zi--) {
+        let z = zombies[zi];
+
+        for (let bi = bullets.length - 1; bi >= 0; bi--) {
+            let b = bullets[bi];
+
+            if (
+                b.x < z.x + z.width &&
+                b.x + b.width > z.x &&
+                b.y < z.y + z.height &&
+                b.y + b.height > z.y
+            ) {
+                zombies.splice(zi, 1);
+                bullets.splice(bi, 1);
+                score++;
+                break;
+            }
+        }
+
+        if (
+            z.y + z.height >= player.y &&
+            z.x < player.x + player.width &&
+            z.x + z.width > player.x
+        ) {
+            endGame();
+        }
+    }
+}
+
+function endGame() {
+    gameOver = true;
+    clearInterval(spawnTimer);
+    document.getElementById("resetBtn").style.display = "inline-block";
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.font = "16px Arial";
+
+    // Soldier
+    ctx.fillStyle = "blue";
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+    ctx.fillStyle = "white";
+    ctx.fillText("S", player.x + 14, player.y + 20);
+
+    // Bullets
+    ctx.fillStyle = "yellow";
+    bullets.forEach(b => ctx.fillRect(b.x, b.y, b.width, b.height));
+
+    // Zombies
+    ctx.fillStyle = "green";
+    zombies.forEach(z => ctx.fillRect(z.x, z.y, z.width, z.height));
+
+    // Score top-right
+    ctx.textAlign = "right";
+    ctx.fillStyle = "white";
+    ctx.fillText("Score: " + score, canvas.width - 10, 20);
+    ctx.textAlign = "left";
+
+    if (gameOver) {
+        ctx.fillStyle = "red";
+        ctx.font = "30px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("GAME OVER", canvas.width / 2, 300);
+        ctx.textAlign = "left";
+    }
+}
+
+function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+function resetGame() {
+    init();
+}
+
+init();
+gameLoop();
+</script>
+
+</body>
+</html>
